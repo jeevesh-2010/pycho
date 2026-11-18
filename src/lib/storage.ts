@@ -1,9 +1,11 @@
-import type { Question, Submission, CloudConfig } from '../types';
-import { DEFAULT_QUESTIONS } from './defaultQuestions';
+import type { Question, Submission, CloudConfig, QuestionTemplate } from '../types';
+import { DEFAULT_QUESTIONS, INITIAL_TEMPLATES } from './defaultQuestions';
 
 const STORAGE_KEYS = {
   QUESTIONS: 'zen_questions_v1',
   SUBMISSIONS: 'zen_submissions_v1',
+  TEMPLATES: 'zen_templates_v2',
+  ACTIVE_TEMPLATE_ID: 'zen_active_template_id_v2',
   DRAFT: 'zen_checkin_draft_v1',
   CLOUD_CONFIG: 'zen_cloud_config_v1',
   THEME: 'zen_theme_v1',
@@ -19,7 +21,10 @@ try {
   console.warn('BroadcastChannel not supported in this environment', e);
 }
 
-export function postLocalSyncEvent(type: 'SUBMISSION_ADDED' | 'QUESTIONS_UPDATED' | 'SUBMISSION_DELETED', payload?: unknown) {
+export function postLocalSyncEvent(
+  type: 'SUBMISSION_ADDED' | 'QUESTIONS_UPDATED' | 'SUBMISSION_DELETED' | 'TEMPLATES_UPDATED',
+  payload?: unknown
+) {
   if (broadcastChannel) {
     try {
       broadcastChannel.postMessage({ type, payload, timestamp: Date.now() });
@@ -69,6 +74,53 @@ export function saveStoredQuestions(questions: Question[]): void {
   }
 }
 
+export function loadStoredTemplates(): QuestionTemplate[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.TEMPLATES);
+    if (!raw) {
+      saveStoredTemplates(INITIAL_TEMPLATES);
+      return INITIAL_TEMPLATES;
+    }
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed;
+    }
+    return INITIAL_TEMPLATES;
+  } catch (e) {
+    console.error('Error loading stored templates', e);
+    return INITIAL_TEMPLATES;
+  }
+}
+
+export function saveStoredTemplates(templates: QuestionTemplate[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.TEMPLATES, JSON.stringify(templates));
+    postLocalSyncEvent('TEMPLATES_UPDATED', templates);
+  } catch (e) {
+    console.error('Error saving templates', e);
+  }
+}
+
+export function loadStoredActiveTemplateId(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.ACTIVE_TEMPLATE_ID) || null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveStoredActiveTemplateId(id: string | null): void {
+  try {
+    if (id) {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_TEMPLATE_ID, id);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_TEMPLATE_ID);
+    }
+  } catch (e) {
+    console.error('Error saving active template id', e);
+  }
+}
+
 export function loadStoredSubmissions(): Submission[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.SUBMISSIONS);
@@ -77,7 +129,6 @@ export function loadStoredSubmissions(): Submission[] {
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      // Sort reverse chronological by timestamp (newest first)
       return parsed.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     }
     return [];

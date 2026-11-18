@@ -8,6 +8,24 @@ export interface Question {
   createdAt: string;
 }
 
+export interface TemplateQuestionItem {
+  id: string;
+  text: string;
+  placeholder?: string;
+  required?: boolean;
+}
+
+export interface QuestionTemplate {
+  id: string;
+  title: string;
+  description?: string;
+  icon?: string;
+  questions: TemplateQuestionItem[];
+  isCustom?: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface SubmissionAnswer {
   questionId: string;
   questionText: string;
@@ -19,6 +37,8 @@ export interface Submission {
   timestamp: string; // ISO 8601 string, e.g. "2026-11-18T17:15:10.000Z"
   date: string; // YYYY-MM-DD
   answers: SubmissionAnswer[];
+  templateId?: string;
+  templateTitle?: string;
   tags?: string[];
   userId?: string;
   synced?: boolean;

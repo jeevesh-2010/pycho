@@ -1,8 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
-import type { Question, Submission, ActiveTab, DateFilterType, SubmissionAnswer } from '../types';
+import type { Question, Submission, ActiveTab, DateFilterType, SubmissionAnswer, QuestionTemplate } from '../types';
 import {
   loadStoredQuestions,
   saveStoredQuestions,
+  loadStoredTemplates,
+  saveStoredTemplates,
+  loadStoredActiveTemplateId,
+  saveStoredActiveTemplateId,
   loadStoredSubmissions,
   saveStoredSubmissions,
   loadStoredDraft,
@@ -11,7 +15,7 @@ import {
   subscribeToLocalSync,
   postLocalSyncEvent,
 } from '../lib/storage';
-import { DEFAULT_QUESTIONS } from '../lib/defaultQuestions';
+import { DEFAULT_QUESTIONS, INITIAL_TEMPLATES } from '../lib/defaultQuestions';
 import { useAuth } from './AuthContext';
 import {
   fetchRemoteSubmissions,
@@ -45,12 +49,22 @@ interface AppContextType {
   moveQuestion: (index: number, direction: 'up' | 'down') => void;
   toggleArchiveQuestion: (id: string) => void;
   resetQuestionsToDefault: () => void;
-  applyPresetQuestions: (presetList: string[]) => void;
+
+  // Editable Templates / Question Sets
+  templates: QuestionTemplate[];
+  activeTemplateId: string | null;
+  activeTemplate: QuestionTemplate | null;
+  applyTemplate: (templateId: string) => void;
+  saveTemplate: (template: QuestionTemplate) => void;
+  deleteTemplate: (templateId: string) => void;
+  duplicateTemplate: (templateId: string) => void;
+  saveCurrentQuestionsAsTemplate: (title: string, description?: string) => void;
+  resetTemplatesToDefault: () => void;
 
   // Submissions
   submissions: Submission[];
   filteredSubmissions: Submission[];
-  addSubmission: (answers: SubmissionAnswer[]) => Promise<Submission>;
+  addSubmission: (answers: SubmissionAnswer[], templateId?: string, templateTitle?: string) => Promise<Submission>;
   deleteSubmission: (id: string) => Promise<void>;
   hasSubmittedToday: boolean;
   todaySubmissionCount: number;
@@ -93,6 +107,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('checkin');
   const [questions, setQuestions] = useState<Question[]>(loadStoredQuestions);
+  const [templates, setTemplates] = useState<QuestionTemplate[]>(loadStoredTemplates);
+  const [activeTemplateId, setActiveTemplateId] = useState<string | null>(loadStoredActiveTemplateId);
   const [submissions, setSubmissions] = useState<Submission[]>(loadStoredSubmissions);
   const [draftAnswers, setDraftAnswers] = useState<Record<string, string>>(loadStoredDraft);
 
@@ -130,6 +146,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else if (type === 'QUESTIONS_UPDATED') {
         const fresh = loadStoredQuestions();
         setQuestions(fresh);
+      } else if (type === 'TEMPLATES_UPDATED') {
+        const freshTemplates = loadStoredTemplates();
+        setTemplates(freshTemplates);
       }
     });
     return unsubscribe;
@@ -144,7 +163,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const remoteSubs = await fetchRemoteSubmissions(supabaseClient, user?.id);
       if (remoteSubs.length > 0) {
         setSubmissions((prevLocal) => {
-          // Merge by ID, keeping newest
           const map = new Map<string, Submission>();
           prevLocal.forEach((s) => map.set(s.id, s));
           remoteSubs.forEach((s) => map.set(s.id, s));
@@ -172,14 +190,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [supabaseClient, user?.id]);
 
-  // Initial cloud sync when client / user connects
+  // Initial cloud sync
   useEffect(() => {
     if (supabaseClient && syncStatus === 'connected') {
       syncWithCloud();
     }
   }, [supabaseClient, syncStatus, syncWithCloud]);
 
-  // Real-time Supabase subscriptions (cross-device sync!)
+  // Real-time Supabase subscriptions
   useEffect(() => {
     if (!supabaseClient) return;
 
@@ -253,6 +271,160 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const activeQuestions = useMemo(() => {
     return questions.filter((q) => !q.archived).sort((a, b) => a.order - b.order);
   }, [questions]);
+
+  // Active template
+  const activeTemplate = useMemo(() => {
+    if (!activeTemplateId) return templates[0] || null;
+    return templates.find((t) => t.id === activeTemplateId) || templates[0] || null;
+  }, [templates, activeTemplateId]);
+
+  // Apply template (Switches active questions to this template's set)
+  const applyTemplate = useCallback(
+    (templateId: string) => {
+      const target = templates.find((t) => t.id === templateId);
+      if (!target) return;
+
+      const newQuestions: Question[] = target.questions.map((item, idx) => ({
+        id: `q-${templateId}-${idx}-${Date.now().toString(36)}`,
+        text: item.text,
+        placeholder: item.placeholder || '',
+        required: Boolean(item.required),
+        order: idx,
+        archived: false,
+        createdAt: new Date().toISOString(),
+      }));
+
+      setQuestions(newQuestions);
+      saveStoredQuestions(newQuestions);
+      setActiveTemplateId(templateId);
+      saveStoredActiveTemplateId(templateId);
+      clearStoredDraft();
+      setDraftAnswers({});
+
+      showToast(`Switched to "${target.title}" questions`, 'success');
+
+      if (supabaseClient) {
+        syncRemoteQuestions(supabaseClient, newQuestions, user?.id);
+      }
+    },
+    [templates, showToast, supabaseClient, user?.id]
+  );
+
+  // Save/Edit Template
+  const saveTemplate = useCallback(
+    (template: QuestionTemplate) => {
+      setTemplates((prev) => {
+        const exists = prev.some((t) => t.id === template.id);
+        const updated = exists
+          ? prev.map((t) => (t.id === template.id ? { ...template, updatedAt: new Date().toISOString() } : t))
+          : [...prev, { ...template, isCustom: true, createdAt: new Date().toISOString() }];
+        saveStoredTemplates(updated);
+        return updated;
+      });
+      showToast(`Template "${template.title}" saved`, 'success');
+
+      // If updating currently active template, update current questions too
+      if (activeTemplateId === template.id) {
+        const newQuestions: Question[] = template.questions.map((item, idx) => ({
+          id: `q-${template.id}-${idx}`,
+          text: item.text,
+          placeholder: item.placeholder || '',
+          required: Boolean(item.required),
+          order: idx,
+          archived: false,
+          createdAt: new Date().toISOString(),
+        }));
+        setQuestions(newQuestions);
+        saveStoredQuestions(newQuestions);
+      }
+    },
+    [activeTemplateId, showToast]
+  );
+
+  // Delete Template
+  const deleteTemplate = useCallback(
+    (templateId: string) => {
+      setTemplates((prev) => {
+        const updated = prev.filter((t) => t.id !== templateId);
+        saveStoredTemplates(updated);
+        return updated;
+      });
+      if (activeTemplateId === templateId) {
+        setActiveTemplateId(null);
+        saveStoredActiveTemplateId(null);
+      }
+      showToast('Template deleted', 'info');
+    },
+    [activeTemplateId, showToast]
+  );
+
+  // Duplicate Template
+  const duplicateTemplate = useCallback(
+    (templateId: string) => {
+      const source = templates.find((t) => t.id === templateId);
+      if (!source) return;
+
+      const newTpl: QuestionTemplate = {
+        id: `tpl-copy-${Date.now()}`,
+        title: `${source.title} (Copy)`,
+        description: source.description || '',
+        icon: source.icon || 'sparkles',
+        isCustom: true,
+        createdAt: new Date().toISOString(),
+        questions: source.questions.map((q, idx) => ({
+          ...q,
+          id: `tq-copy-${Date.now()}-${idx}`,
+        })),
+      };
+
+      setTemplates((prev) => {
+        const updated = [...prev, newTpl];
+        saveStoredTemplates(updated);
+        return updated;
+      });
+      showToast(`Duplicated "${source.title}"`, 'success');
+    },
+    [templates, showToast]
+  );
+
+  // Save current questions as new template
+  const saveCurrentQuestionsAsTemplate = useCallback(
+    (title: string, description?: string) => {
+      const cleanTitle = title.trim();
+      if (!cleanTitle) return;
+
+      const newTemplate: QuestionTemplate = {
+        id: `tpl-custom-${Date.now()}`,
+        title: cleanTitle,
+        description: description?.trim() || `Custom question set with ${activeQuestions.length} questions`,
+        icon: 'sparkles',
+        isCustom: true,
+        createdAt: new Date().toISOString(),
+        questions: activeQuestions.map((q, idx) => ({
+          id: `tq-${Date.now()}-${idx}`,
+          text: q.text,
+          placeholder: q.placeholder || '',
+          required: Boolean(q.required),
+        })),
+      };
+
+      setTemplates((prev) => {
+        const updated = [...prev, newTemplate];
+        saveStoredTemplates(updated);
+        return updated;
+      });
+      setActiveTemplateId(newTemplate.id);
+      saveStoredActiveTemplateId(newTemplate.id);
+      showToast(`Saved "${cleanTitle}" template!`, 'success');
+    },
+    [activeQuestions, showToast]
+  );
+
+  const resetTemplatesToDefault = useCallback(() => {
+    setTemplates(INITIAL_TEMPLATES);
+    saveStoredTemplates(INITIAL_TEMPLATES);
+    showToast('Reset templates to default sets', 'info');
+  }, [showToast]);
 
   // Draft management
   const updateDraftAnswer = useCallback((questionId: string, text: string) => {
@@ -364,6 +536,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const resetQuestionsToDefault = useCallback(() => {
     setQuestions(DEFAULT_QUESTIONS);
     saveStoredQuestions(DEFAULT_QUESTIONS);
+    setActiveTemplateId(null);
+    saveStoredActiveTemplateId(null);
     showToast('Reset to default questions', 'info');
 
     if (supabaseClient) {
@@ -371,50 +545,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [showToast, supabaseClient, user?.id]);
 
-  const applyPresetQuestions = useCallback(
-    (presetList: string[]) => {
-      const newQuestions: Question[] = presetList.map((text, idx) => ({
-        id: `q-preset-${Date.now()}-${idx}`,
-        text,
-        placeholder: '',
-        required: false,
-        order: idx,
-        archived: false,
-        createdAt: new Date().toISOString(),
-      }));
-      setQuestions(newQuestions);
-      saveStoredQuestions(newQuestions);
-      showToast('Preset questions loaded!', 'success');
-
-      if (supabaseClient) {
-        syncRemoteQuestions(supabaseClient, newQuestions, user?.id);
-      }
-    },
-    [showToast, supabaseClient, user?.id]
-  );
-
   // Submissions management
   const addSubmission = useCallback(
-    async (answers: SubmissionAnswer[]): Promise<Submission> => {
+    async (
+      answers: SubmissionAnswer[],
+      templateId?: string,
+      templateTitle?: string
+    ): Promise<Submission> => {
       const now = new Date();
+      const currentTpl = activeTemplate;
       const submission: Submission = {
         id: `sub-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
         timestamp: now.toISOString(),
         date: getTodayDateString(),
         answers,
+        templateId: templateId || currentTpl?.id,
+        templateTitle: templateTitle || currentTpl?.title,
         userId: user?.id,
         synced: Boolean(supabaseClient),
         createdAt: now.toISOString(),
       };
 
-      // 1. Save locally immediately
+      // Save locally immediately
       const updated = [submission, ...submissions];
       setSubmissions(updated);
       saveStoredSubmissions(updated);
       clearDraft();
       postLocalSyncEvent('SUBMISSION_ADDED', submission);
 
-      // 2. Sync to Supabase in background
+      // Sync to Supabase in background
       if (supabaseClient) {
         insertRemoteSubmission(supabaseClient, submission, user?.id).then((ok) => {
           if (!ok) {
@@ -425,7 +584,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       return submission;
     },
-    [submissions, clearDraft, supabaseClient, user?.id, showToast]
+    [submissions, clearDraft, activeTemplate, supabaseClient, user?.id, showToast]
   );
 
   const deleteSubmission = useCallback(
@@ -443,7 +602,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [submissions, showToast, supabaseClient]
   );
 
-  // Today submission status
   const hasSubmittedToday = useMemo(() => {
     const today = getTodayDateString();
     return submissions.some((s) => s.date === today);
@@ -454,11 +612,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return submissions.filter((s) => s.date === today).length;
   }, [submissions]);
 
-  // Filtered Submissions (Search & Date filter)
+  // Filtered Submissions
   const filteredSubmissions = useMemo(() => {
     let result = submissions;
 
-    // 1. Date Filter
     if (dateFilter === 'today') {
       result = result.filter((s) => isToday(parseISO(s.timestamp)));
     } else if (dateFilter === 'yesterday') {
@@ -473,16 +630,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       result = result.filter((s) => s.date === customDate);
     }
 
-    // 2. Search Query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       result = result.filter((s) => {
-        // Search in any answer text or question prompt
-        return s.answers.some(
+        const matchesTemplate = s.templateTitle?.toLowerCase().includes(query);
+        const matchesAnswers = s.answers.some(
           (ans) =>
             ans.answer.toLowerCase().includes(query) ||
             ans.questionText.toLowerCase().includes(query)
         );
+        return matchesTemplate || matchesAnswers;
       });
     }
 
@@ -514,7 +671,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const incomingSubs: Submission[] = parsed.submissions || parsed;
         if (Array.isArray(incomingSubs)) {
-          // Merge
           const map = new Map<string, Submission>();
           submissions.forEach((s) => map.set(s.id, s));
           incomingSubs.forEach((s) => map.set(s.id, s));
@@ -554,7 +710,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         moveQuestion,
         toggleArchiveQuestion,
         resetQuestionsToDefault,
-        applyPresetQuestions,
+        templates,
+        activeTemplateId,
+        activeTemplate,
+        applyTemplate,
+        saveTemplate,
+        deleteTemplate,
+        duplicateTemplate,
+        saveCurrentQuestionsAsTemplate,
+        resetTemplatesToDefault,
         submissions,
         filteredSubmissions,
         addSubmission,

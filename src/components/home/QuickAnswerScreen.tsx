@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { QuestionInputItem } from './QuestionInputItem';
 import { SubmissionSuccess } from './SubmissionSuccess';
-import type { Submission, SubmissionAnswer } from '../../types';
-import { Send, Trash2, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { TemplateSelectorBar } from './TemplateSelectorBar';
+import { TemplateEditorModal } from '../templates/TemplateEditorModal';
+import { SaveCurrentAsTemplateModal } from '../templates/SaveCurrentAsTemplateModal';
+import type { Submission, SubmissionAnswer, QuestionTemplate } from '../../types';
+import { Send, Trash2, SlidersHorizontal, Sparkles, BookmarkPlus } from 'lucide-react';
 import { format } from 'date-fns';
 
 export const QuickAnswerScreen: React.FC = () => {
@@ -13,6 +16,9 @@ export const QuickAnswerScreen: React.FC = () => {
     updateDraftAnswer,
     clearDraft,
     addSubmission,
+    activeTemplate,
+    saveTemplate,
+    saveCurrentQuestionsAsTemplate,
     setActiveTab,
     showToast,
     resetQuestionsToDefault,
@@ -21,6 +27,11 @@ export const QuickAnswerScreen: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [lastSubmitted, setLastSubmitted] = useState<Submission | null>(null);
+
+  // Template modal state
+  const [isNewTemplateOpen, setIsNewTemplateOpen] = useState(false);
+  const [isSaveCurrentOpen, setIsSaveCurrentOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<QuestionTemplate | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -72,7 +83,7 @@ export const QuickAnswerScreen: React.FC = () => {
         answer: (draftAnswers[q.id] || '').trim(),
       }));
 
-      const created = await addSubmission(answers);
+      const created = await addSubmission(answers, activeTemplate?.id, activeTemplate?.title);
       setLastSubmitted(created);
       showToast('Check-in recorded', 'success');
     } catch (err) {
@@ -104,17 +115,33 @@ export const QuickAnswerScreen: React.FC = () => {
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       {/* Android M3 Hero Greeting Banner */}
       <div className="mb-6 p-6 rounded-3xl bg-[#f3edf7] dark:bg-[#211f26] border border-[#cac4d0]/40 dark:border-[#49454f]/40 shadow-xs">
-        <div className="flex items-center gap-2 text-xs font-medium text-[#49454f] dark:text-[#cac4d0] mb-2 uppercase tracking-wider">
-          <Sparkles className="w-4 h-4 text-[#1a73e8] dark:text-[#a8c7fa]" />
-          <span>{format(new Date(), 'EEEE, MMMM d')}</span>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2 text-xs font-medium text-[#49454f] dark:text-[#cac4d0] uppercase tracking-wider">
+            <Sparkles className="w-4 h-4 text-[#1a73e8] dark:text-[#a8c7fa]" />
+            <span>{format(new Date(), 'EEEE, MMMM d')}</span>
+          </div>
+          {activeTemplate && (
+            <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#dbe2f9] text-[#131c2b] dark:bg-[#004a77] dark:text-[#c2e7ff]">
+              Set: {activeTemplate.title}
+            </span>
+          )}
         </div>
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1b20] dark:text-[#e6e0e9]">
-          {getGreeting()}. Time for your daily reflection.
+          {getGreeting()}. Time for your reflection.
         </h1>
         <p className="text-sm text-[#49454f] dark:text-[#cac4d0] mt-1.5 leading-relaxed">
-          Answer quickly below. Submissions sync in real time across your devices.
+          Quickly select a question set below, type your answers, and submit.
         </p>
       </div>
+
+      {/* Quick Template / Question Set Switcher Bar */}
+      <TemplateSelectorBar
+        onOpenNewTemplate={() => {
+          setEditingTemplate(null);
+          setIsNewTemplateOpen(true);
+        }}
+        onOpenManageTemplates={() => setActiveTab('questions')}
+      />
 
       {/* Empty State: No active questions */}
       {activeQuestions.length === 0 ? (
@@ -159,7 +186,7 @@ export const QuickAnswerScreen: React.FC = () => {
 
           {/* Android M3 Bottom Action Bar with Extended FAB */}
           <div className="pt-2 pb-10 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3 text-xs text-[#49454f] dark:text-[#cac4d0] order-2 sm:order-1">
+            <div className="flex items-center gap-3 text-xs text-[#49454f] dark:text-[#cac4d0] order-2 sm:order-1 flex-wrap">
               {hasAnyInput && (
                 <button
                   type="button"
@@ -171,8 +198,17 @@ export const QuickAnswerScreen: React.FC = () => {
                   <span>Reset draft</span>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => setIsSaveCurrentOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#ece6f0] dark:bg-[#2b2930] hover:bg-[#e6e0e9] dark:hover:bg-[#36343b] text-[#1a73e8] dark:text-[#a8c7fa] transition-colors cursor-pointer"
+                title="Save this question set as a reusable template"
+              >
+                <BookmarkPlus className="w-3.5 h-3.5" />
+                <span>Save set as template</span>
+              </button>
               <span className="hidden sm:inline">
-                Shortcut: <kbd className="px-2 py-0.5 rounded-md bg-[#e6e0e9] dark:bg-[#2b2930] font-mono text-[11px]">Ctrl+Enter</kbd>
+                <kbd className="px-2 py-0.5 rounded-md bg-[#e6e0e9] dark:bg-[#2b2930] font-mono text-[11px]">Ctrl+Enter</kbd>
               </span>
             </div>
 
@@ -188,6 +224,22 @@ export const QuickAnswerScreen: React.FC = () => {
           </div>
         </form>
       )}
+
+      {/* Template Editor Modal */}
+      <TemplateEditorModal
+        isOpen={isNewTemplateOpen}
+        onClose={() => setIsNewTemplateOpen(false)}
+        templateToEdit={editingTemplate}
+        onSave={(tpl) => saveTemplate(tpl)}
+      />
+
+      {/* Save Current Questions as Template Modal */}
+      <SaveCurrentAsTemplateModal
+        isOpen={isSaveCurrentOpen}
+        onClose={() => setIsSaveCurrentOpen(false)}
+        questionCount={activeQuestions.length}
+        onSave={(tplTitle, tplDesc) => saveCurrentQuestionsAsTemplate(tplTitle, tplDesc)}
+      />
     </div>
   );
 };

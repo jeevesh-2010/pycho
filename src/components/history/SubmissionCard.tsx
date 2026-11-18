@@ -33,9 +33,16 @@ export const SubmissionCard: React.FC<SubmissionCardProps> = ({
       {/* 1. Android M3 Card Header with exact Date & Timestamp */}
       <div className="px-5 py-4 border-b border-[#cac4d0]/30 dark:border-[#49454f]/30 bg-[#ece6f0]/70 dark:bg-[#2b2930]/70 flex items-center justify-between gap-3">
         <div className="flex flex-col min-w-0">
-          <div className="flex items-center gap-2 text-[#1d1b20] dark:text-[#e6e0e9] font-semibold text-sm sm:text-base">
-            <Calendar className="w-4 h-4 text-[#1a73e8] dark:text-[#a8c7fa] shrink-0" />
-            <span className="truncate">{primary}</span>
+          <div className="flex items-center gap-2 text-[#1d1b20] dark:text-[#e6e0e9] font-semibold text-sm sm:text-base flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-[#1a73e8] dark:text-[#a8c7fa] shrink-0" />
+              <span className="truncate">{primary}</span>
+            </div>
+            {submission.templateTitle && (
+              <span className="px-2 py-0.5 rounded-full bg-[#dbe2f9] text-[#131c2b] dark:bg-[#004a77] dark:text-[#c2e7ff] text-[10px] font-semibold shrink-0">
+                {submission.templateTitle}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2 text-xs text-[#49454f] dark:text-[#cac4d0] mt-0.5">
