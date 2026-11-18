@@ -1,0 +1,9 @@
+{
+  "appId": "com.zendaily.app",
+  "appName": "ZenDaily",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}

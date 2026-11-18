@@ -1,0 +1,19 @@
+{
+  "short_name": "ZenDaily",
+  "name": "ZenDaily — Android Daily Check-in & Q&A",
+  "description": "Minimalist, distraction-free cross-device daily check-in journal with real-time sync.",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#141218",
+  "theme_color": "#1a73e8",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "scope": "/"
+}
