@@ -33,7 +33,7 @@ export const SubmissionCard: React.FC<SubmissionCardProps> = ({
       {/* 1. Android M3 Card Header with exact Date & Timestamp */}
       <div className="px-5 py-4 border-b border-[#cac4d0]/30 dark:border-[#49454f]/30 bg-[#ece6f0]/70 dark:bg-[#2b2930]/70 flex items-center justify-between gap-3">
         <div className="flex flex-col min-w-0">
-          <div className="flex items-center gap-2 text-[#1d1b20] dark:text-[#e6e0e9] font-semibold text-sm sm:text-base flex-wrap">
+          <div className="flex items-center gap-2 text-[#1d1b20] dark:text-[#e6e0e9] font-bold text-sm sm:text-base flex-wrap">
             <div className="flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-[#1a73e8] dark:text-[#a8c7fa] shrink-0" />
               <span className="truncate">{primary}</span>
@@ -77,14 +77,17 @@ export const SubmissionCard: React.FC<SubmissionCardProps> = ({
         </div>
       </div>
 
-      {/* 2. Card Body: Each Question and its Answer */}
-      <div className="p-5 sm:p-6 flex flex-col gap-4">
+      {/* 2. Card Body: Each Question (Bold & Highlighted) and its Answer */}
+      <div className="p-5 sm:p-6 flex flex-col gap-3.5">
         {submission.answers.map((item, idx) => (
-          <div key={idx} className="flex flex-col gap-1">
-            <span className="text-xs font-semibold tracking-wide uppercase text-[#49454f] dark:text-[#cac4d0] select-none">
+          <div
+            key={idx}
+            className="flex flex-col gap-1.5 p-4 rounded-2xl bg-[#ece6f0]/50 dark:bg-[#2b2930]/50 border border-[#cac4d0]/40 dark:border-[#49454f]/40"
+          >
+            <span className="font-bold text-sm sm:text-base text-[#1d1b20] dark:text-[#e6e0e9] leading-snug">
               {item.questionText}
             </span>
-            <div className="text-sm sm:text-base text-[#1d1b20] dark:text-[#e6e0e9] leading-relaxed whitespace-pre-wrap break-words">
+            <div className="text-sm sm:text-base text-[#313033] dark:text-[#cac4d0] leading-relaxed whitespace-pre-wrap break-words pt-0.5">
               {item.answer ? (
                 item.answer
               ) : (

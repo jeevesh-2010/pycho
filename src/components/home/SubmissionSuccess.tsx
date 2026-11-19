@@ -70,13 +70,13 @@ export const SubmissionSuccess: React.FC<SubmissionSuccessProps> = ({
           </button>
         </div>
 
-        <div className="flex flex-col gap-3.5">
+        <div className="flex flex-col gap-3">
           {submission.answers.map((ans, idx) => (
-            <div key={idx} className="flex flex-col gap-0.5">
-              <span className="text-xs font-medium text-[#49454f] dark:text-[#cac4d0]">
+            <div key={idx} className="flex flex-col gap-1 p-3 rounded-2xl bg-[#ece6f0]/60 dark:bg-[#2b2930]/60 border border-[#cac4d0]/30 dark:border-[#49454f]/30">
+              <span className="text-xs sm:text-sm font-bold text-[#1d1b20] dark:text-[#e6e0e9]">
                 {ans.questionText}
               </span>
-              <p className="text-sm sm:text-base text-[#1d1b20] dark:text-[#e6e0e9] line-clamp-2">
+              <p className="text-sm text-[#49454f] dark:text-[#cac4d0] line-clamp-2">
                 {ans.answer || <span className="italic text-[#79747e]">No response</span>}
               </p>
             </div>

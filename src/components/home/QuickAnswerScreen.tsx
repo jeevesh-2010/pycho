@@ -6,8 +6,7 @@ import { TemplateSelectorBar } from './TemplateSelectorBar';
 import { TemplateEditorModal } from '../templates/TemplateEditorModal';
 import { SaveCurrentAsTemplateModal } from '../templates/SaveCurrentAsTemplateModal';
 import type { Submission, SubmissionAnswer, QuestionTemplate } from '../../types';
-import { Send, Trash2, SlidersHorizontal, Sparkles, BookmarkPlus } from 'lucide-react';
-import { format } from 'date-fns';
+import { Send, Trash2, SlidersHorizontal, BookmarkPlus } from 'lucide-react';
 
 export const QuickAnswerScreen: React.FC = () => {
   const {
@@ -42,13 +41,6 @@ export const QuickAnswerScreen: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   });
-
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
-  };
 
   const hasAnyInput = Object.values(draftAnswers).some((v) => v && v.trim().length > 0);
 
@@ -112,28 +104,7 @@ export const QuickAnswerScreen: React.FC = () => {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-      {/* Android M3 Hero Greeting Banner */}
-      <div className="mb-6 p-6 rounded-3xl bg-[#f3edf7] dark:bg-[#211f26] border border-[#cac4d0]/40 dark:border-[#49454f]/40 shadow-xs">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2 text-xs font-medium text-[#49454f] dark:text-[#cac4d0] uppercase tracking-wider">
-            <Sparkles className="w-4 h-4 text-[#1a73e8] dark:text-[#a8c7fa]" />
-            <span>{format(new Date(), 'EEEE, MMMM d')}</span>
-          </div>
-          {activeTemplate && (
-            <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#dbe2f9] text-[#131c2b] dark:bg-[#004a77] dark:text-[#c2e7ff]">
-              Set: {activeTemplate.title}
-            </span>
-          )}
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1d1b20] dark:text-[#e6e0e9]">
-          {getGreeting()}. Time for your reflection.
-        </h1>
-        <p className="text-sm text-[#49454f] dark:text-[#cac4d0] mt-1.5 leading-relaxed">
-          Quickly select a question set below, type your answers, and submit.
-        </p>
-      </div>
-
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
       {/* Quick Template / Question Set Switcher Bar */}
       <TemplateSelectorBar
         onOpenNewTemplate={() => {

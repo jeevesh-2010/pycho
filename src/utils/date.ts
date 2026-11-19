@@ -1,4 +1,4 @@
-import { format, formatDistanceToNow, isToday, isYesterday, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 export function getTodayDateString(): string {
   const now = new Date();
@@ -11,7 +11,7 @@ export function getTodayDateString(): string {
 export function formatExactTimestamp(isoString: string): string {
   try {
     const date = parseISO(isoString);
-    return format(date, 'EEEE, MMM d, yyyy • h:mm:ss a');
+    return format(date, 'd MMMM, EEEE • h:mm:ss a');
   } catch {
     return isoString;
   }
@@ -20,15 +20,10 @@ export function formatExactTimestamp(isoString: string): string {
 export function formatCardTimestamp(isoString: string): { primary: string; secondary: string } {
   try {
     const date = parseISO(isoString);
-    let primary = format(date, 'MMM d, yyyy • h:mm a');
-    if (isToday(date)) {
-      primary = `Today • ${format(date, 'h:mm a')}`;
-    } else if (isYesterday(date)) {
-      primary = `Yesterday • ${format(date, 'h:mm a')}`;
-    }
-
-    const secondary = formatDistanceToNow(date, { addSuffix: true });
-    return { primary, secondary };
+    // Formats like "18 December, Monday • 5:15 PM" without relative verbs like today/yesterday
+    const dateAndDay = format(date, 'd MMMM, EEEE');
+    const timeString = format(date, 'h:mm a');
+    return { primary: `${dateAndDay} • ${timeString}`, secondary: timeString };
   } catch {
     return { primary: isoString, secondary: '' };
   }
@@ -39,7 +34,7 @@ export function formatFullDateHeader(dateStr: string): string {
     const parts = dateStr.split('-');
     if (parts.length === 3) {
       const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-      return format(date, 'MMMM d, yyyy');
+      return format(date, 'd MMMM, EEEE');
     }
     return dateStr;
   } catch {

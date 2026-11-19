@@ -81,9 +81,16 @@ export function loadStoredTemplates(): QuestionTemplate[] {
       saveStoredTemplates(INITIAL_TEMPLATES);
       return INITIAL_TEMPLATES;
     }
-    const parsed = JSON.parse(raw);
+    const parsed: QuestionTemplate[] = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
+      // Cleanly filter out removed legacy preset templates
+      const legacyIds = ['tpl-work-standup', 'tpl-evening-decompress', 'tpl-mindfulness', 'tpl-weekly-review'];
+      const filtered = parsed.filter((t) => !legacyIds.includes(t.id));
+      if (filtered.length === 0) {
+        saveStoredTemplates(INITIAL_TEMPLATES);
+        return INITIAL_TEMPLATES;
+      }
+      return filtered;
     }
     return INITIAL_TEMPLATES;
   } catch (e) {

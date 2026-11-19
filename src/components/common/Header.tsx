@@ -2,7 +2,6 @@ import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { useTheme } from '../../context/ThemeContext';
 import { SyncStatusBadge } from '../sync/SyncStatusBadge';
-import { AndroidInstallPrompt } from './AndroidInstallPrompt';
 import { Sun, Moon, Sparkles, History, SlidersHorizontal, Edit3, Settings } from 'lucide-react';
 
 export const Header: React.FC = () => {
@@ -84,9 +83,6 @@ export const Header: React.FC = () => {
 
         {/* Right Action Icons (Android M3 circular icon buttons) */}
         <div className="flex items-center gap-2">
-          {/* Android App Install & Download Chip */}
-          <AndroidInstallPrompt />
-
           {/* Cloud Sync Status Badge */}
           <SyncStatusBadge />
 
